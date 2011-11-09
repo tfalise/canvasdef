@@ -4,8 +4,8 @@ Tile = new Class({
         this.y = y;
         this.type = type;
         this.isVisited = false;
-        this.distance = 0;
-        this.origin = -1;
+        this.distance = 10000;
+        this.origin = null;
     },
     updateTile: function(targetTile) {
         if(targetTile.isVisited) return;
@@ -155,14 +155,21 @@ TileMap = new Class({
         
             var random = Math.random();
             
-            if(random < 0.3) {
+            if(random < 0.4) {
                 item.type = TileType.Wall;
+                
+                if((this.isBlockedLeft(item) && this.isBlockedRight(item))
+                    || (this.isBlockedTop(item) && this.isBlockedBottom(item)))
+                {
+                    console.trace("Reverting wall tile to prevent path blocking");
+                    item.type = TileType.Free;
+                }
             }
-        });
+        }, this);
     },
     isBlockedLeft: function(tile) {
         if(!tile.type.IsBlocking) return false;
-        if(tile.x == 0 || tile.x == this.width - 1) return true;
+        if(tile.x == 0) return true;
         
         var blocking = false;
         
@@ -172,6 +179,42 @@ TileMap = new Class({
         
         return blocking;
     },
+    isBlockedRight: function(tile) {
+        if(!tile.type.IsBlocking) return false;
+        if(tile.x == this.width - 1) return true;
+        
+        var blocking = false;
+        
+        blocking |= this.isBlockedRight(this.getTile(tile.x+1, tile.y));
+        if(tile.y > 0) blocking |= this.isBlockedRight(this.getTile(tile.x+1, tile.y-1));
+        if(tile.y < this.height - 1) blocking |= this.isBlockedRight(this.getTile(tile.x+1, tile.y+1));
+        
+        return blocking;
+    },
+    isBlockedTop: function(tile) {
+        if(!tile.type.IsBlocking) return false;
+        if(tile.y == 0) return true;
+        
+        var blocking = false;
+        
+        blocking |= this.isBlockedTop(this.getTile(tile.x, tile.y-1));
+        if(tile.x > 0) blocking |= this.isBlockedTop(this.getTile(tile.x-1, tile.y-1));
+        if(tile.x < this.width - 1) blocking |= this.isBlockedTop(this.getTile(tile.x+1, tile.y-1));
+        
+        return blocking;
+    },
+    isBlockedBottom: function(tile) {
+        if(!tile.type.IsBlocking) return false;
+        if(tile.y == this.height - 1) return true;
+        
+        var blocking = false;
+        
+        blocking |= this.isBlockedBottom(this.getTile(tile.x, tile.y+1));
+        if(tile.x > 0) blocking |= this.isBlockedBottom(this.getTile(tile.x-1, tile.y+1));
+        if(tile.x < this.width - 1) blocking |= this.isBlockedBottom(this.getTile(tile.x+1, tile.y+1));
+        
+        return blocking;
+    }
 });
 
 Node = new Class({
