@@ -1,0 +1,11 @@
+canvasdef is a tentative to create a tower defense engine with HTML5 / Javascript
+
+It is based on the use of :
+  - Javascript
+  - HTML5 canvas element
+  - Mootools library
+
+Current features :
+  - Generation of a random map including 1 entry, 1 exit and random walls
+  - Compute best path for all open tiles
+  - Allows placement of walls, updating paths when necessary
