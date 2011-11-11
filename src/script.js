@@ -33,6 +33,16 @@ Tile = new Class({
             target.next = this;
         }
     },
+    getNeighbours: function(map) {
+        var neighbours = [];
+        
+        if(this.y > 0)                  neighbours.push(map.getTile(this.x, this.y-1));
+        if(this.y < map.height - 1)     neighbours.push(map.getTile(this.x, this.y+1));
+        if(this.x > 0)                  neighbours.push(map.getTile(this.x-1, this.y));
+        if(this.x < map.width - 1)      neighbours.push(map.getTile(this.x+1, this.y));
+        
+        return neighbours;
+    },
     toString: function() {
         return 'Tile {' + this.x + ',' + this.y + '} [' + this.type + ']';
     }
@@ -88,7 +98,7 @@ TileMap = new Class({
             for(w = 0; w < this.width; w++) {
                 var tile = this.getTile(w,h);
                 
-                if(this.pathOrigin == tile && tile.type != TileType.Entry) {
+                if(this.pathOrigin == tile && tile.type == TileType.Free) {
                     context.fillStyle = '#729fcf';
                 } else if(this.path != null && this.path.contains(tile) && tile.type != TileType.Entry) {
                     context.fillStyle = '#fce94f';
@@ -183,9 +193,12 @@ TileMap = new Class({
         // Cannot turn entry & exit into walls
         if(tile.type == TileType.Entry || tile.type == TileType.Exit) return;
         
+        // Set tile to wall
         tile.type = TileType.Wall;
+        tile.next = null;
         
-        // TODO: add algorithm to invalidate orphan tiles
+        // Reset tile
+        this.resetTile(tile);
         
         // Recompute pathes
         this.updateTiles();
@@ -194,6 +207,21 @@ TileMap = new Class({
         if(this.path != null && this.path.contains(tile)) {
             this.path = this.getPath(this.pathOrigin);
         }
+    },
+    resetTile: function(tile) {
+        tile.next = null;
+        tile.distance = MAX_DISTANCE;
+        
+        // Mark neighbours as unvisited
+        tile.getNeighbours(this).each(function(item, index) {
+            if(item.type != TileType.Wall)
+                item.isVisited = false;
+        });
+        
+        // Reset ancestors
+        tile.ancestors.each(function(item, index) {
+            this.resetTile(item);
+        }, this);
     },
     getPath: function(tile) {
         var path = new LinkedList();
@@ -306,7 +334,7 @@ Game = new Class({
         if(x >= this.game.tileMap.width || y >= this.game.tileMap.height) return;
         
         if(e.ctrlKey) {
-            //this.game.tileMap.addWall(theGame.tileMap.getTile(x,y));
+            this.game.tileMap.addWall(theGame.tileMap.getTile(x,y));
         } else {
             this.game.tileMap.setPathOrigin(theGame.tileMap.getTile(x,y));
         }
