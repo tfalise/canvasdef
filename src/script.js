@@ -1,10 +1,13 @@
+var MAX_DISTANCE = 10000;
+var WALL_SPAWN_RATE = 0.3;
+
 Tile = new Class({
     initialize: function(x,y,type) {
         this.x = x;
         this.y = y;
         this.type = type;
         this.isVisited = false;
-        this.distance = 10000;
+        this.distance = MAX_DISTANCE;
         this.ancestors = [];
         this.next = null;
     },
@@ -37,23 +40,27 @@ Tile = new Class({
 
 var TileType = {
     Entry: { 
+        Name: 'Entry',
         Color: '#8ae234',
         Weight: 1,
         IsBlocking: false
     },
     Exit: { 
+        Name: 'Exit',
         Color: '#ef2929',
         Weight: 0,
         IsBlocking: false
     },
     Free: { 
+        Name: 'Free',
         Color: '#edd400',
         Weight: 1,
         IsBlocking: false
     },
     Wall: { 
+        Name: 'Wall',
         Color: '#8f5902',
-        Weight: 10000,
+        Weight: MAX_DISTANCE,
         IsBlocking: true
     }
 };
@@ -64,6 +71,7 @@ TileMap = new Class({
         this.height = height;
         this.tiles = [];
         this.path = null;
+        this.pathOrigin = null;
         
         // Create tiles
         for(h = 0; h < this.height; h++) {
@@ -80,10 +88,13 @@ TileMap = new Class({
             for(w = 0; w < this.width; w++) {
                 var tile = this.getTile(w,h);
                 
-                if(this.path != null && this.path.contains(tile) && tile.type != TileType.Entry)
+                if(this.pathOrigin == tile && tile.type != TileType.Entry) {
+                    context.fillStyle = '#729fcf';
+                } else if(this.path != null && this.path.contains(tile) && tile.type != TileType.Entry) {
                     context.fillStyle = '#fce94f';
-                else
+                } else {
                     context.fillStyle = tile.type.Color;
+                }
                     
                 context.fillRect(refX + w*10, refY + h*10, 10, 10);
             }
@@ -105,19 +116,28 @@ TileMap = new Class({
         var tile = this.getTile(x,y);
         tile.type = newType;
     },
-    updatePath: function() {
-        this.path = this.getPath(this.getEntry());
+    setPathOrigin: function(tile) {
+        this.pathOrigin = tile;
+        this.path = this.getPath(tile);
     },
-    randomizeBlockingTiles: function() {        
-        this.tiles.each(function(item, index) {
-            if(item.type === TileType.Entry || item.type === TileType.Exit) return;
+    randomizeWalls: function() {     
+        do {
+            this.clearWalls();
         
-            var random = Math.random();
+            this.tiles.each(function(item, index) {
+                if(item.type === TileType.Entry || item.type === TileType.Exit) return;
             
-            if(random < 0.3) {
-                item.type = TileType.Wall;
-            }
-        }, this);
+                var random = Math.random();
+                
+                if(random < WALL_SPAWN_RATE) {
+                    item.type = TileType.Wall;
+                }
+            }, this);
+            
+            this.updateTiles();
+        } while(this.getEntry().next == null);
+        
+        this.fillDeadEnds();
     },
     updateTiles: function() {
         var current = this.getUpdatableTile();
@@ -159,6 +179,22 @@ TileMap = new Class({
         
         return nextTile;
     },
+    addWall: function(tile) {
+        // Cannot turn entry & exit into walls
+        if(tile.type == TileType.Entry || tile.type == TileType.Exit) return;
+        
+        tile.type = TileType.Wall;
+        
+        // TODO: add algorithm to invalidate orphan tiles
+        
+        // Recompute pathes
+        this.updateTiles();
+        
+        // Update path if needed
+        if(this.path != null && this.path.contains(tile)) {
+            this.path = this.getPath(this.pathOrigin);
+        }
+    },
     getPath: function(tile) {
         var path = new LinkedList();
         var current = tile;
@@ -169,6 +205,28 @@ TileMap = new Class({
         }
         
         return path;
+    },
+    fillDeadEnds: function() {
+        this.tiles.each(function(item, index) {
+            if(item.next == null && item.type == TileType.Free) item.type = TileType.Wall;
+        });
+    },
+    clearWalls: function() {
+        this.tiles.each(function(item, index) {
+            item.isVisited = false;
+            item.ancestors = [];
+            item.next = null;
+            
+            if(item.type == TileType.Exit) {
+                item.distance = 0;
+            } else {
+                item.distance = MAX_DISTANCE;
+            }
+            
+            if(item.type == TileType.Wall) {
+                item.type = TileType.Free;
+            }
+        });
     }
 });
 
@@ -232,6 +290,7 @@ Game = new Class({
     initialize: function(canvas) {
         this.tileMap = new TileMap(40,30);
         this.canvas = canvas;
+        this.canvas.game = this;
         this.context = canvas.getContext("2d");
         this.canvas.addEventListener('click', this.onClicked, true);
     },
@@ -244,10 +303,15 @@ Game = new Class({
         var y = Math.floor((e.pageY - this.offsetTop) / 10);
 
         // dont try to get a path for tiles out of bounds
-        if(x >= theGame.tileMap.width || y >= theGame.tileMap.height) return;
+        if(x >= this.game.tileMap.width || y >= this.game.tileMap.height) return;
         
-        theGame.tileMap.path = theGame.tileMap.getPath(theGame.tileMap.getTile(x,y));
-        theGame.draw();
+        if(e.ctrlKey) {
+            //this.game.tileMap.addWall(theGame.tileMap.getTile(x,y));
+        } else {
+            this.game.tileMap.setPathOrigin(theGame.tileMap.getTile(x,y));
+        }
+        
+        this.game.draw();
     },
     draw: function() {
         // Draw tiles
@@ -255,14 +319,11 @@ Game = new Class({
     }
 });
 
-var theGame;
-
 function startGame() {
     theGame = new Game(document.getElementById('canvas'));
     theGame.tileMap.setEntry(6,2);
     theGame.tileMap.setExit(34,26);
-    theGame.tileMap.randomizeBlockingTiles();
-    theGame.tileMap.updateTiles();
-    theGame.tileMap.updatePath();
+    theGame.tileMap.randomizeWalls();
+    theGame.tileMap.setPathOrigin(theGame.tileMap.getEntry());
     theGame.draw();
 }
