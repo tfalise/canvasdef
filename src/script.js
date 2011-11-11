@@ -5,15 +5,29 @@ Tile = new Class({
         this.type = type;
         this.isVisited = false;
         this.distance = 10000;
-        this.origin = null;
+        this.ancestors = [];
+        this.next = null;
     },
-    updateTile: function(targetTile) {
-        if(targetTile.isVisited) return;
+    removeAncestor: function(tile) {
+        var idx = this.ancestors.indexOf(tile);
+        if(idx != -1) this.ancestors.splice(idx, 1);
+    },
+    updateNeighbour: function(target) {
+        if(target.isVisited) return;
         
-        var distance = this.distance + targetTile.type.Weight;
-        if(distance < targetTile.distance) {
-            targetTile.distance = distance;
-            targetTile.origin = this;
+        var distance = this.distance + target.type.Weight;
+        if(distance < target.distance) {
+            // Update target distance
+            target.distance = distance;
+            
+            // If the target already had a path, remove it
+            if(target.next != null) {
+                target.next.removeAncestor(target);
+            }
+            
+            // Update new path
+            this.ancestors.push(target);
+            target.next = this;
         }
     },
     toString: function() {
@@ -29,7 +43,7 @@ var TileType = {
     },
     Exit: { 
         Color: '#ef2929',
-        Weight: 1,
+        Weight: 0,
         IsBlocking: false
     },
     Free: { 
@@ -66,7 +80,7 @@ TileMap = new Class({
             for(w = 0; w < this.width; w++) {
                 var tile = this.getTile(w,h);
                 
-                if(this.path != null && this.path.contains(tile))
+                if(this.path != null && this.path.contains(tile) && tile.type != TileType.Entry)
                     context.fillStyle = '#fce94f';
                 else
                     context.fillStyle = tile.type.Color;
@@ -91,50 +105,46 @@ TileMap = new Class({
         var tile = this.getTile(x,y);
         tile.type = newType;
     },
-    computePath: function() {
-        // Reset tiles
+    updatePath: function() {
+        this.path = this.getPath(this.getEntry());
+    },
+    randomizeBlockingTiles: function() {        
         this.tiles.each(function(item, index) {
-            if(item.type === TileType.Entry) {
-                item.distance = 0;
-                item.isVisited = false;
-            } else {
-                item.distance = 999999999;
-                item.isVisited = false;
+            if(item.type === TileType.Entry || item.type === TileType.Exit) return;
+        
+            var random = Math.random();
+            
+            if(random < 0.3) {
+                item.type = TileType.Wall;
             }
-        });
+        }, this);
+    },
+    updateTiles: function() {
+        var current = this.getUpdatableTile();
         
-        var current = this.getEntry();
-        var entry = current;
-        var exit = this.getExit();
-        
-        // Compute distances
-        do {
+        while(current != null) {
+            // Flag the tile as visited
             current.isVisited = true;
-            this.updateConnectedTiles(current);
-            current = this.getNextTile();
-        } while (current != exit)
-        
-        // Reverse path
-        var list = new LinkedList();
-        while(current != entry) {
-            list.addFirst(new Node(current));
-            current = current.origin;
+            this.updateTileNeighbours(current);
+            current = this.getUpdatableTile();
+        }
+    },
+    updateTileNeighbours: function(tile) {
+        if(tile.y > 0)                  tile.updateNeighbour(this.getTile(tile.x, tile.y-1));
+        if(tile.y < this.height - 1)    tile.updateNeighbour(this.getTile(tile.x, tile.y+1));
+        if(tile.x > 0)                  tile.updateNeighbour(this.getTile(tile.x-1, tile.y));
+        if(tile.x < this.width - 1)     tile.updateNeighbour(this.getTile(tile.x+1, tile.y));
+    },
+    getUpdatableTile: function() {
+        // Always start from the exit if not visited
+        var theExit = this.getExit();
+        if(!theExit.isVisited) {
+            theExit.distance = 0;
+            return theExit;
         }
         
-        return list;
-    },
-    updatePath: function() {
-        this.path = this.computePath();
-    },
-    updateConnectedTiles: function(tile) {
-        if(tile.y > 0)                  tile.updateTile(this.getTile(tile.x, tile.y-1));
-        if(tile.y < this.height - 1)    tile.updateTile(this.getTile(tile.x, tile.y+1));
-        if(tile.x > 0)                  tile.updateTile(this.getTile(tile.x-1, tile.y));
-        if(tile.x < this.width - 1)     tile.updateTile(this.getTile(tile.x+1, tile.y));
-    },
-    getNextTile: function() {
-        var nextTile;
-        
+        // Find the unvisited tile having the lowest distance
+        var nextTile = null;
         this.tiles.each(function(item, index) {
             if(!item.isVisited) {
                 if(nextTile == null) {
@@ -149,71 +159,16 @@ TileMap = new Class({
         
         return nextTile;
     },
-    randomizeBlockingTiles: function() {        
-        this.tiles.each(function(item, index) {
-            if(item.type === TileType.Entry || item.type === TileType.Exit) return;
+    getPath: function(tile) {
+        var path = new LinkedList();
+        var current = tile;
         
-            var random = Math.random();
-            
-            if(random < 0.4) {
-                item.type = TileType.Wall;
-                
-                if((this.isBlockedLeft(item) && this.isBlockedRight(item))
-                    || (this.isBlockedTop(item) && this.isBlockedBottom(item)))
-                {
-                    console.trace("Reverting wall tile to prevent path blocking");
-                    item.type = TileType.Free;
-                }
-            }
-        }, this);
-    },
-    isBlockedLeft: function(tile) {
-        if(!tile.type.IsBlocking) return false;
-        if(tile.x == 0) return true;
+        while(tile != null) {
+            path.addLast(new Node(tile));
+            tile = tile.next;
+        }
         
-        var blocking = false;
-        
-        blocking |= this.isBlockedLeft(this.getTile(tile.x-1, tile.y));
-        if(tile.y > 0) blocking |= this.isBlockedLeft(this.getTile(tile.x-1, tile.y-1));
-        if(tile.y < this.height - 1) blocking |= this.isBlockedLeft(this.getTile(tile.x-1, tile.y+1));
-        
-        return blocking;
-    },
-    isBlockedRight: function(tile) {
-        if(!tile.type.IsBlocking) return false;
-        if(tile.x == this.width - 1) return true;
-        
-        var blocking = false;
-        
-        blocking |= this.isBlockedRight(this.getTile(tile.x+1, tile.y));
-        if(tile.y > 0) blocking |= this.isBlockedRight(this.getTile(tile.x+1, tile.y-1));
-        if(tile.y < this.height - 1) blocking |= this.isBlockedRight(this.getTile(tile.x+1, tile.y+1));
-        
-        return blocking;
-    },
-    isBlockedTop: function(tile) {
-        if(!tile.type.IsBlocking) return false;
-        if(tile.y == 0) return true;
-        
-        var blocking = false;
-        
-        blocking |= this.isBlockedTop(this.getTile(tile.x, tile.y-1));
-        if(tile.x > 0) blocking |= this.isBlockedTop(this.getTile(tile.x-1, tile.y-1));
-        if(tile.x < this.width - 1) blocking |= this.isBlockedTop(this.getTile(tile.x+1, tile.y-1));
-        
-        return blocking;
-    },
-    isBlockedBottom: function(tile) {
-        if(!tile.type.IsBlocking) return false;
-        if(tile.y == this.height - 1) return true;
-        
-        var blocking = false;
-        
-        blocking |= this.isBlockedBottom(this.getTile(tile.x, tile.y+1));
-        if(tile.x > 0) blocking |= this.isBlockedBottom(this.getTile(tile.x-1, tile.y+1));
-        if(tile.x < this.width - 1) blocking |= this.isBlockedBottom(this.getTile(tile.x+1, tile.y+1));
-        
-        return blocking;
+        return path;
     }
 });
 
@@ -274,9 +229,18 @@ Game = new Class({
         this.tileMap = new TileMap(40,30);
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
+        this.canvas.addEventListener('click', this.onClicked, true);
     },
     update: function(tick) {
         
+    },
+    onClicked: function(e) {
+        // find the clicked tile
+        var x = Math.floor((e.pageX - this.offsetLeft) / 10);
+        var y = Math.floor((e.pageY - this.offsetTop) / 10);
+        
+        theGame.tileMap.path = theGame.tileMap.getPath(theGame.tileMap.getTile(x,y));
+        theGame.draw();
     },
     draw: function() {
         // Draw tiles
@@ -284,11 +248,14 @@ Game = new Class({
     }
 });
 
+var theGame;
+
 function startGame() {
-    var theGame = new Game(document.getElementById('canvas'));
+    theGame = new Game(document.getElementById('canvas'));
     theGame.tileMap.setEntry(6,2);
     theGame.tileMap.setExit(34,26);
     theGame.tileMap.randomizeBlockingTiles();
+    theGame.tileMap.updateTiles();
     theGame.tileMap.updatePath();
     theGame.draw();
 }
