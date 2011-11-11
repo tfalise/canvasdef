@@ -164,7 +164,7 @@ TileMap = new Class({
         var current = tile;
         
         while(tile != null) {
-            path.addLast(new Node(tile));
+            path.addLast(tile);
             tile = tile.next;
         }
         
@@ -185,7 +185,9 @@ LinkedList = new Class({
         this.head = null;
         this.tail = null;
     },
-    addFirst: function(node) {
+    addFirst: function(value) {
+        var node = new Node(value);
+        
         if(this.head == null) {
             this.head = node;
             this.tail = node;
@@ -197,7 +199,9 @@ LinkedList = new Class({
         node.next = this.head;
         this.head = node;
     },
-    addLast: function(node) {
+    addLast: function(value) {
+        var node = new Node(value);
+        
         if(this.head == null) {
             this.head = node;
             this.tail = node;
