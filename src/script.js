@@ -238,6 +238,9 @@ Game = new Class({
         // find the clicked tile
         var x = Math.floor((e.pageX - this.offsetLeft) / 10);
         var y = Math.floor((e.pageY - this.offsetTop) / 10);
+
+        // dont try to get a path for tiles out of bounds
+        if(x >= theGame.tileMap.width || y >= theGame.tileMap.height) return;
         
         theGame.tileMap.path = theGame.tileMap.getPath(theGame.tileMap.getTile(x,y));
         theGame.draw();
