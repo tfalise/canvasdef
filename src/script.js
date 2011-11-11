@@ -160,10 +160,9 @@ TileMap = new Class({
         }
     },
     updateTileNeighbours: function(tile) {
-        if(tile.y > 0)                  tile.updateNeighbour(this.getTile(tile.x, tile.y-1));
-        if(tile.y < this.height - 1)    tile.updateNeighbour(this.getTile(tile.x, tile.y+1));
-        if(tile.x > 0)                  tile.updateNeighbour(this.getTile(tile.x-1, tile.y));
-        if(tile.x < this.width - 1)     tile.updateNeighbour(this.getTile(tile.x+1, tile.y));
+        tile.getNeighbours(this).each(function(item, index) {
+            tile.updateNeighbour(item);
+        });
     },
     getUpdatableTile: function() {
         // Always start from the exit if not visited
