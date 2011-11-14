@@ -221,6 +221,7 @@ TileMap = new Class({
         tile.ancestors.each(function(item, index) {
             this.resetTile(item);
         }, this);
+        tile.ancestors = [];
     },
     getPath: function(tile) {
         var path = new LinkedList();
