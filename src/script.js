@@ -1,6 +1,8 @@
 var MAX_DISTANCE = 10000;
 var WALL_SPAWN_RATE = 0.3;
 
+var DEBUG = false;
+
 Tile = new Class({
     initialize: function(x,y,type) {
         this.x = x;
@@ -10,6 +12,7 @@ Tile = new Class({
         this.distance = MAX_DISTANCE;
         this.ancestors = [];
         this.next = null;
+        this.wasUpdated = false;
     },
     removeAncestor: function(tile) {
         var idx = this.ancestors.indexOf(tile);
@@ -102,13 +105,17 @@ TileMap = new Class({
                     context.fillStyle = '#729fcf';
                 } else if(this.path != null && this.path.contains(tile) && tile.type != TileType.Entry) {
                     context.fillStyle = '#fce94f';
-                } else {
+                } else if (tile.wasUpdated && tile.type == TileType.Free) {
+                    context.fillStyle = '#ad7fa8';
+                }  else {
                     context.fillStyle = tile.type.Color;
                 }
                     
                 context.fillRect(refX + w*10, refY + h*10, 10, 10);
             }
         }
+        
+        if(DEBUG) this.resetUpdateStatus();
     },
     setEntry: function(x,y) {
         this.setTileType(x,y,TileType.Entry);
@@ -210,6 +217,7 @@ TileMap = new Class({
     resetTile: function(tile) {
         tile.next = null;
         tile.distance = MAX_DISTANCE;
+        if(DEBUG) tile.wasUpdated = true;
         
         // Mark neighbours as unvisited
         tile.getNeighbours(this).each(function(item, index) {
@@ -217,11 +225,19 @@ TileMap = new Class({
                 item.isVisited = false;
         });
         
+        // TODO: there might be an optimization available here, based on which ancestors must be reset
+        
         // Reset ancestors
         tile.ancestors.each(function(item, index) {
             this.resetTile(item);
         }, this);
+        
         tile.ancestors = [];
+    },
+    resetUpdateStatus: function() {
+        this.tiles.each(function(item, index) {
+            item.wasUpdated = false;
+        });
     },
     getPath: function(tile) {
         var path = new LinkedList();
