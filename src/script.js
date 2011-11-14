@@ -1,6 +1,8 @@
 var MAX_DISTANCE = 10000;
 var WALL_SPAWN_RATE = 0.3;
 
+var GAME_FPS = 40;
+
 var DEBUG = false;
 
 Tile = new Class({
@@ -338,7 +340,7 @@ Game = new Class({
         this.context = canvas.getContext("2d");
         this.canvas.addEventListener('click', this.onClicked, true);
     },
-    update: function(tick) {
+    update: function() {
         
     },
     onClicked: function(e) {
@@ -360,14 +362,29 @@ Game = new Class({
     draw: function() {
         // Draw tiles
         this.tileMap.draw(this.context, 0, 0);
+    },
+    initializeLevel: function() {
+        this.tileMap.setEntry(6,2);
+        this.tileMap.setExit(34,26);
+        this.tileMap.randomizeWalls();
+        this.tileMap.setPathOrigin(theGame.tileMap.getEntry());
+    },
+    run: function() {
+        this.update();
+        this.draw();
     }
 });
 
 function startGame() {
     theGame = new Game(document.getElementById('canvas'));
-    theGame.tileMap.setEntry(6,2);
-    theGame.tileMap.setExit(34,26);
-    theGame.tileMap.randomizeWalls();
-    theGame.tileMap.setPathOrigin(theGame.tileMap.getEntry());
-    theGame.draw();
+    theGame.initializeLevel();
+    runGame();
+}
+
+function runGame() {
+    theGame._intervalId = theGame.run.periodical(1000 / GAME_FPS, theGame);
+}
+
+function stopGame() {
+    clearInterval(theGame._intervalId);
 }
