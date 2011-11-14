@@ -3,6 +3,7 @@ var WALL_SPAWN_RATE = 0.3;
 
 var GAME_FPS = 40;
 
+var MONSTER_SPEED = 0.5;
 var DEBUG = false;
 
 Tile = new Class({
@@ -37,6 +38,9 @@ Tile = new Class({
             this.ancestors.push(target);
             target.next = this;
         }
+    },
+    getCenter: function() {
+        return new Vector2(this.x * 10 + 5, this.y * 10 + 5);
     },
     getNeighbours: function(map) {
         var neighbours = [];
@@ -87,6 +91,7 @@ TileMap = new Class({
         this.tiles = [];
         this.path = null;
         this.pathOrigin = null;
+        this.monsters = [];
         
         // Create tiles
         for(h = 0; h < this.height; h++) {
@@ -95,8 +100,17 @@ TileMap = new Class({
             }
         }
     },
+    update: function() {
+        this.monsters.each(function(item, index) {
+            item.update();
+        });
+    },
     getTile: function(x,y) {
         return this.tiles[y*this.width + x];
+    },
+    removeMonster: function(monster) {
+        var idx = this.monsters.indexOf(monster);
+        if(idx != -1) this.monsters.splice(idx, 1);
     },
     draw: function(context, refX, refY) {
         for(h = 0; h < this.height; h++) {
@@ -116,6 +130,10 @@ TileMap = new Class({
                 context.fillRect(refX + w*10, refY + h*10, 10, 10);
             }
         }
+        
+        this.monsters.each(function(item, index) {
+            item.draw(context);
+        });
         
         if(DEBUG) this.resetUpdateStatus();
     },
@@ -332,6 +350,89 @@ LinkedList = new Class({
     }
 });
 
+Vector2 = new Class({
+    initialize: function(x,y) {
+        this.x = x;
+        this.y = y;
+    },
+    invert: function() {
+        this.x = -this.x;
+        this.y = -this.y;
+    }
+});
+
+Monster = new Class({
+    initialize: function(map, x, y) {
+        this.position = new Vector2(x,y);
+        this.direction = new Vector2(0,0);
+        this.speed = MONSTER_SPEED;
+        this.map = map;
+        this.nextTile = null;
+        this.color = '#2e3436';
+        
+        this.updateNextTile();
+    },
+    update: function() {
+        // If the next tile has been made a wall, revert direction
+        if(this.nextTile.type == TileType.Wall) {
+            this.direction.invert();
+            this.nextTile = this.getCurrentTile(); // revert should only happen when the monster is fully on the first tile
+        }
+    
+        // Update position
+        this.position.x += this.direction.x * this.speed;
+        this.position.y += this.direction.y * this.speed;
+        
+        // If we currently are on the target tile, check the position to see if we need to change it
+        var currentTile = this.getCurrentTile();
+        if(this.getCurrentTile() == this.nextTile) {            
+            var hasReachedCenter = this.checkPositionToCenter(currentTile.getCenter());
+            
+            // If we reached the exit, remove the monster
+            if(this.nextTile == this.map.getExit()) {
+                this.map.removeMonster(this);
+                this.map = null;
+                return;
+            }
+            
+            if(hasReachedCenter) {
+                this.updateNextTile();
+            }
+        }
+        
+    },
+    checkPositionToCenter: function(vector) {
+        if(this.direction.x ==  1 && this.position.x >= vector.x) { this.position.x = vector.x; return true; }
+        if(this.direction.x == -1 && this.position.x <= vector.x) { this.position.x = vector.x; return true; }
+        if(this.direction.y ==  1 && this.position.y >= vector.y) { this.position.y = vector.y; return true; }
+        if(this.direction.y == -1 && this.position.y <= vector.y) { this.position.y = vector.y; return true; }
+        
+        return false;
+    },
+    updateNextTile: function() {
+        this.nextTile = this.getCurrentTile().next;
+        this.direction = this.getNextDirection();
+    },
+    getNextDirection: function() {
+        var current = this.getCurrentTile();
+        
+        if(this.nextTile.x < current.x) return new Vector2(-1, 0);
+        if(this.nextTile.x > current.x) return new Vector2(1, 0);
+        if(this.nextTile.y > current.y) return new Vector2(0, 1);
+        if(this.nextTile.y < current.y) return new Vector2(0, -1);
+    },
+    getCurrentTile: function() {
+        return this.map.getTile(Math.floor(this.position.x / 10), Math.floor(this.position.y / 10));
+    },
+    draw: function(context) {
+        context.fillStyle = this.color;
+        context.beginPath();
+        context.arc(this.position.x, this.position.y, 4, 0, Math.PI*2, true);
+        context.closePath();
+        context.fill();
+    }
+});
+
 Game = new Class({
     initialize: function(canvas) {
         this.tileMap = new TileMap(40,30);
@@ -341,7 +442,7 @@ Game = new Class({
         this.canvas.addEventListener('click', this.onClicked, true);
     },
     update: function() {
-        
+        this.tileMap.update();
     },
     onClicked: function(e) {
         // find the clicked tile
@@ -372,6 +473,12 @@ Game = new Class({
     run: function() {
         this.update();
         this.draw();
+    },
+    spawnMonster: function() {
+        var startPosition = this.tileMap.getEntry().getCenter();
+        var monster = new Monster(this.tileMap, startPosition.x, startPosition.y);
+        
+        this.tileMap.monsters.push(monster);
     }
 });
 
@@ -387,4 +494,8 @@ function runGame() {
 
 function stopGame() {
     clearInterval(theGame._intervalId);
+}
+
+function spawn() {
+    theGame.spawnMonster();
 }
