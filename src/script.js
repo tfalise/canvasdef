@@ -52,9 +52,6 @@ Tile = new Class({
         this.next = null;
         this.wasUpdated = false;
     },
-    removeAncestor: function(tile) {
-        this.ancestors.remove(tile);
-    },
     updateNeighbour: function(target) {
         if(target.isVisited) return;
         
@@ -65,7 +62,7 @@ Tile = new Class({
             
             // If the target already had a path, remove it
             if(target.next != null) {
-                target.next.removeAncestor(target);
+                target.next.ancestors.remove(target);
             }
             
             // Update new path
@@ -114,10 +111,6 @@ TileMap = new Class({
     },
     getTile: function(x,y) {
         return this.tiles[y*this.width + x];
-    },
-    removeMonster: function(monster) {
-        var idx = this.monsters.indexOf(monster);
-        if(idx != -1) this.monsters.splice(idx, 1);
     },
     draw: function(context, refX, refY) {
         for(h = 0; h < this.height; h++) {
@@ -397,7 +390,7 @@ Monster = new Class({
             
             // If we reached the exit, remove the monster
             if(this.nextTile == this.map.getExit()) {
-                this.map.removeMonster(this);
+                this.map.monsters.remove(this);
                 this.map = null;
                 return;
             }
