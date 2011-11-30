@@ -1,25 +1,59 @@
-var MAX_DISTANCE = 10000;
-var WALL_SPAWN_RATE = 0.3;
+// Constants & Enum definitions 
+var Constants = {
+    MaximumDistance     : 10000,
+    WallSpawnRate       : 0.3,
+    GameFPS             : 40,
+    MonsterBaseSpeed    : 0.5,
+    Debug               : false
+};
 
-var GAME_FPS = 40;
+var TileType = {
+    Entry: { 
+        Name: 'Entry',
+        Color: '#8ae234',
+        Weight: 1,
+        IsBlocking: false
+    },
+    Exit: { 
+        Name: 'Exit',
+        Color: '#ef2929',
+        Weight: 0,
+        IsBlocking: false
+    },
+    Free: { 
+        Name: 'Free',
+        Color: '#edd400',
+        Weight: 1,
+        IsBlocking: false
+    },
+    Wall: { 
+        Name: 'Wall',
+        Color: '#8f5902',
+        Weight: Constants.MaximumDistance,
+        IsBlocking: true
+    }
+};
 
-var MONSTER_SPEED = 0.5;
-var DEBUG = false;
+// Framework enhancements
+Array.prototype.remove = function(item) {
+    var itemIdx = this.indexOf(item);
+    if(itemIdx != -1) this.splice(itemIdx, 1);
+};
 
+// Classes definitions
 Tile = new Class({
     initialize: function(x,y,type) {
         this.x = x;
         this.y = y;
         this.type = type;
         this.isVisited = false;
-        this.distance = MAX_DISTANCE;
+        this.distance = Constants.MaximumDistance;
         this.ancestors = [];
         this.next = null;
         this.wasUpdated = false;
     },
     removeAncestor: function(tile) {
-        var idx = this.ancestors.indexOf(tile);
-        if(idx != -1) this.ancestors.splice(idx, 1);
+        this.ancestors.remove(tile);
     },
     updateNeighbour: function(target) {
         if(target.isVisited) return;
@@ -56,33 +90,6 @@ Tile = new Class({
         return 'Tile {' + this.x + ',' + this.y + '} [' + this.type + ']';
     }
 });
-
-var TileType = {
-    Entry: { 
-        Name: 'Entry',
-        Color: '#8ae234',
-        Weight: 1,
-        IsBlocking: false
-    },
-    Exit: { 
-        Name: 'Exit',
-        Color: '#ef2929',
-        Weight: 0,
-        IsBlocking: false
-    },
-    Free: { 
-        Name: 'Free',
-        Color: '#edd400',
-        Weight: 1,
-        IsBlocking: false
-    },
-    Wall: { 
-        Name: 'Wall',
-        Color: '#8f5902',
-        Weight: MAX_DISTANCE,
-        IsBlocking: true
-    }
-};
 
 TileMap = new Class({
     initialize: function(width, height) {
@@ -135,7 +142,7 @@ TileMap = new Class({
             item.draw(context);
         });
         
-        if(DEBUG) this.resetUpdateStatus();
+        if(Constants.Debug) this.resetUpdateStatus();
     },
     setEntry: function(x,y) {
         this.setTileType(x,y,TileType.Entry);
@@ -166,7 +173,7 @@ TileMap = new Class({
             
                 var random = Math.random();
                 
-                if(random < WALL_SPAWN_RATE) {
+                if(random < Constants.WallSpawnRate) {
                     item.type = TileType.Wall;
                 }
             }, this);
@@ -236,8 +243,8 @@ TileMap = new Class({
     },
     resetTile: function(tile) {
         tile.next = null;
-        tile.distance = MAX_DISTANCE;
-        if(DEBUG) tile.wasUpdated = true;
+        tile.distance = Constants.MaximumDistance;
+        if(Constants.Debug) tile.wasUpdated = true;
         
         // Mark neighbours as unvisited
         tile.getNeighbours(this).each(function(item, index) {
@@ -284,7 +291,7 @@ TileMap = new Class({
             if(item.type == TileType.Exit) {
                 item.distance = 0;
             } else {
-                item.distance = MAX_DISTANCE;
+                item.distance = Constants.MaximumDistance;
             }
             
             if(item.type == TileType.Wall) {
@@ -365,7 +372,7 @@ Monster = new Class({
     initialize: function(map, x, y) {
         this.position = new Vector2(x,y);
         this.direction = new Vector2(0,0);
-        this.speed = MONSTER_SPEED;
+        this.speed = Constants.MonsterBaseSpeed;
         this.map = map;
         this.nextTile = null;
         this.color = '#2e3436';
@@ -482,6 +489,7 @@ Game = new Class({
     }
 });
 
+// Game control
 function startGame() {
     theGame = new Game(document.getElementById('canvas'));
     theGame.initializeLevel();
@@ -489,7 +497,7 @@ function startGame() {
 }
 
 function runGame() {
-    theGame._intervalId = theGame.run.periodical(1000 / GAME_FPS, theGame);
+    theGame._intervalId = theGame.run.periodical(1000 / Constants.GameFPS, theGame);
 }
 
 function stopGame() {
