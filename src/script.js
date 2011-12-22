@@ -234,6 +234,44 @@ TileMap = new Class({
             this.path = this.getPath(this.pathOrigin);
         }
     },
+    removeWall: function(tile) {
+        // Only walls can be removed
+        if(tile.type != TileType.Wall) return;
+        
+        // Mark the tile as not being a wall
+        tile.type = TileType.Free;
+        
+        // find next
+        var nextTile = null;
+        tile.getNeighbours(this).each(function(item, index) {
+            if(item.type == TileType.Wall) return;
+            if(nextTile == null || item.distance < nextTile.distance) {
+                nextTile = item;
+            }
+        });
+        
+        // compute dExit = distance of tile to exit
+        this.backwardUpdate(nextTile, tile);
+        
+        // Update path
+        this.path = this.getPath(this.pathOrigin);
+    },
+    backwardUpdate: function(source, tile) {
+        // Check if we should use the source as new path
+        if(source.distance + tile.type.Weight < tile.distance) {
+            if(tile.next != null) tile.next.ancestors.remove(tile);
+            tile.next = source;
+            source.ancestors.push(tile);
+            tile.distance = source.distance + tile.type.Weight;
+            
+            tile.getNeighbours(this).each(function(item, index) {
+                if(item.type == TileType.Wall) return;
+                if(item == tile.next) return;
+                
+                this.backwardUpdate(tile, item);
+            }, this);
+        }
+    },
     resetTile: function(tile) {
         tile.next = null;
         tile.distance = Constants.MaximumDistance;
@@ -453,7 +491,10 @@ Game = new Class({
         if(x >= this.game.tileMap.width || y >= this.game.tileMap.height) return;
         
         if(e.ctrlKey) {
-            this.game.tileMap.addWall(theGame.tileMap.getTile(x,y));
+            if(this.game.tileMap.getTile(x,y).type == TileType.Free)
+                this.game.tileMap.addWall(theGame.tileMap.getTile(x,y));
+            else if(this.game.tileMap.getTile(x,y).type == TileType.Wall)
+                this.game.tileMap.removeWall(theGame.tileMap.getTile(x,y));
         } else {
             this.game.tileMap.setPathOrigin(theGame.tileMap.getTile(x,y));
         }
